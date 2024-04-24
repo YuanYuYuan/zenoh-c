@@ -55,6 +55,7 @@ jobs:
           ctest -C Release --output-on-failure -E "(unit_z_api_alignment_test|build_z_build_static)"
         env:
           RUST_BACKTRACE: full
+          RUSTFLAGS: -g
 
       # - name: Run cmake tests with zenoh-c as static library
       #   shell: bash
