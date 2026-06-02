@@ -335,6 +335,9 @@ pub(crate) fn _apply_advanced_publisher_put_options<'a>(
     if let Some(timestamp) = options.put_options.timestamp {
         builder = builder.timestamp(Some(*timestamp.as_rust_type_ref()));
     }
+    if let Some(instr) = options.put_options.timestamp_instrumentation {
+        builder = builder.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
+    }
     builder
 }
 

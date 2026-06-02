@@ -238,10 +238,18 @@ typedef enum z_whatami_t {
  */
 #if defined(Z_FEATURE_UNSTABLE_API)
 typedef enum z_interception_point_t {
+#if defined(Z_FEATURE_UNSTABLE_API)
   Z_INTERCEPTION_POINT_SEND = 0,
+#endif
+#if defined(Z_FEATURE_UNSTABLE_API)
   Z_INTERCEPTION_POINT_ROUTE = 1,
+#endif
+#if defined(Z_FEATURE_UNSTABLE_API)
   Z_INTERCEPTION_POINT_RECEIVE = 2,
+#endif
+#if defined(Z_FEATURE_UNSTABLE_API)
   Z_INTERCEPTION_POINT_UNKNOWN = 255,
+#endif
 } z_interception_point_t;
 #endif
 /**
@@ -1113,9 +1121,6 @@ typedef struct z_owned_session_ts_callback_t {
                 void *context);
   void (*_drop)(void *context);
 } z_owned_session_ts_callback_t;
-typedef struct z_moved_session_ts_callback_t {
-  z_owned_session_ts_callback_t _this;
-} z_moved_session_ts_callback_t;
 #endif
 /**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
@@ -1468,6 +1473,16 @@ typedef struct z_scout_options_t {
 typedef struct z_moved_session_t {
   struct z_owned_session_t _this;
 } z_moved_session_t;
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Moved session timestamp callback.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+typedef struct z_moved_session_ts_callback_t {
+  struct z_owned_session_ts_callback_t _this;
+} z_moved_session_ts_callback_t;
+#endif
 /**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
  * @brief Callbacks for ShmSegment.
@@ -5882,6 +5897,9 @@ ZENOHC_API void z_reply_take_from_loaned(struct z_owned_reply_t *dst, struct z_l
  *
  * Returns a loaned pointer to the timestamp stack on a successful reply's sample,
  * or NULL if not present.
+ *
+ * # Safety
+ * Caller must ensure `this_` is a valid, initialized pointer.
  */
 #if defined(Z_FEATURE_UNSTABLE_API)
 ZENOHC_API
@@ -6898,6 +6916,9 @@ ZENOHC_API void z_timestamp_instrumentation_drop(struct z_moved_timestamp_instru
  * @warning This API has been marked as unstable.
  *
  * Borrows the instrumentation config.
+ *
+ * # Safety
+ * Caller must ensure `this_` is a valid, initialized pointer.
  */
 #if defined(Z_FEATURE_UNSTABLE_API)
 ZENOHC_API
