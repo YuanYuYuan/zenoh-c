@@ -31,7 +31,10 @@ use crate::{
     z_priority_t, z_reply_keyexpr_t, z_timestamp_t, z_view_string_from_substr, z_view_string_t,
 };
 #[cfg(feature = "unstable")]
-use crate::{transmute::IntoCType, z_entity_global_id_t, z_source_info_t};
+use crate::{
+    timestamp_stack::z_loaned_timestamp_instrumentation_t, transmute::IntoCType,
+    z_entity_global_id_t, z_source_info_t,
+};
 decl_c_type!(
     owned(z_owned_queryable_t, option Queryable<()>),
     loaned(z_loaned_queryable_t),
@@ -166,6 +169,12 @@ pub struct z_query_reply_options_t {
     pub source_info: Option<&'static z_source_info_t>,
     /// The attachment to this reply.
     pub attachment: Option<&'static mut z_moved_bytes_t>,
+    #[cfg(feature = "unstable")]
+    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+    ///
+    /// The timestamp instrumentation config for this reply. If set, the reply carries a timestamp
+    /// stack with records at the configured interception points.
+    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 /// Constructs the default value for `z_query_reply_options_t`.
@@ -181,6 +190,8 @@ pub extern "C" fn z_query_reply_options_default(this_: &mut MaybeUninit<z_query_
         #[cfg(feature = "unstable")]
         source_info: None,
         attachment: None,
+        #[cfg(feature = "unstable")]
+        timestamp_instrumentation: None,
     });
 }
 
@@ -191,6 +202,12 @@ pub extern "C" fn z_query_reply_options_default(this_: &mut MaybeUninit<z_query_
 pub struct z_query_reply_err_options_t {
     /// The encoding of the error payload.
     pub encoding: Option<&'static mut z_moved_encoding_t>,
+    #[cfg(feature = "unstable")]
+    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+    ///
+    /// The timestamp instrumentation config for this error reply. If set, the reply carries a
+    /// timestamp stack with records at the configured interception points.
+    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 /// Constructs the default value for `z_query_reply_err_options_t`.
@@ -199,7 +216,11 @@ pub struct z_query_reply_err_options_t {
 pub extern "C" fn z_query_reply_err_options_default(
     this: &mut MaybeUninit<z_query_reply_err_options_t>,
 ) {
-    this.write(z_query_reply_err_options_t { encoding: None });
+    this.write(z_query_reply_err_options_t {
+        encoding: None,
+        #[cfg(feature = "unstable")]
+        timestamp_instrumentation: None,
+    });
 }
 
 /// Represents the set of options that can be applied to a query delete reply,
@@ -390,6 +411,10 @@ pub extern "C" fn z_query_reply(
             reply = reply.timestamp(Some(timestamp.into_rust_type()));
         }
         reply = reply.express(options.is_express);
+        #[cfg(feature = "unstable")]
+        if let Some(instr) = options.timestamp_instrumentation {
+            reply = reply.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
+        }
     }
 
     if let Err(e) = reply.wait() {
@@ -416,16 +441,20 @@ pub extern "C" fn z_query_reply(
 pub unsafe extern "C" fn z_query_reply_err(
     this: &z_loaned_query_t,
     payload: &mut z_moved_bytes_t,
-    options: Option<&mut z_query_reply_err_options_t>,
+    mut options: Option<&mut z_query_reply_err_options_t>,
 ) -> result::z_result_t {
     let query = this.as_rust_type_ref();
     let payload = payload.take_rust_type();
-    let reply = query.reply_err(payload).encoding(
-        options
-            .and_then(|o| o.encoding.take())
-            .map(|e| e.take_rust_type())
-            .unwrap_or(Encoding::default()),
-    );
+    let encoding = options
+        .as_mut()
+        .and_then(|o| o.encoding.take())
+        .map(|e| e.take_rust_type())
+        .unwrap_or(Encoding::default());
+    let mut reply = query.reply_err(payload).encoding(encoding);
+    #[cfg(feature = "unstable")]
+    if let Some(instr) = options.and_then(|o| o.timestamp_instrumentation) {
+        reply = reply.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
+    }
 
     if let Err(e) = reply.wait() {
         crate::report_error!("{}", e);
