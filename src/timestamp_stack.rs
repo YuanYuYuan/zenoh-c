@@ -21,8 +21,8 @@ use std::{mem::MaybeUninit, ptr::null, sync::Arc};
 
 use libc::c_void;
 use zenoh::timestamp_stack::{
-    InterceptionPoint, SessionTimestampCallback, TimestampInstrumentation,
-    TimestampStack as RustTimestampStack, TsStackContext,
+    InstrumentationTimestamp, InterceptionPoint, SessionTimestampCallback, TimestampInstrumentation,
+    TimestampInstrumentationBuilder, TimestampStack as RustTimestampStack, TsStackContext,
 };
 
 // Re-export so that put.rs / get.rs / publisher.rs can import via `timestamp_stack::`.
@@ -88,7 +88,12 @@ pub extern "C" fn z_timestamp_instrumentation_new(
     receive: bool,
 ) -> crate::result::z_result_t {
     let this = this_.as_rust_type_mut_uninit();
-    match TimestampInstrumentation::new(send, route, receive) {
+    match TimestampInstrumentationBuilder::new()
+        .set_send(send)
+        .set_route(route)
+        .set_receive(receive)
+        .build()
+    {
         Ok(instr) => {
             this.write(Some(instr));
             crate::result::Z_OK
@@ -213,9 +218,16 @@ pub extern "C" fn z_timestamp_stack_record_timestamp(
     record: &z_loaned_timestamp_stack_record_t,
     len: &mut usize,
 ) -> *const u8 {
-    let bytes = record.as_rust_type_ref().timestamp();
-    *len = bytes.len();
-    bytes.as_ptr()
+    match record.as_rust_type_ref().timestamp() {
+        InstrumentationTimestamp::Custom(bytes) => {
+            *len = bytes.len();
+            bytes.as_ptr()
+        }
+        InstrumentationTimestamp::UHLC(_) => {
+            *len = 0;
+            null()
+        }
+    }
 }
 
 /// @warning This API has been marked as unstable.
@@ -230,12 +242,12 @@ pub extern "C" fn z_timestamp_stack_record_as_timestamp(
     out: &mut MaybeUninit<z_timestamp_t>,
 ) -> crate::result::z_result_t {
     use crate::transmute::IntoCType;
-    match record.as_rust_type_ref().as_timestamp() {
-        Some(ts) => {
-            out.write(ts.into_c_type());
+    match record.as_rust_type_ref().timestamp() {
+        InstrumentationTimestamp::UHLC(ts) => {
+            out.write((*ts).into_c_type());
             crate::result::Z_OK
         }
-        None => crate::result::Z_EINVAL,
+        InstrumentationTimestamp::Custom(_) => crate::result::Z_EINVAL,
     }
 }
 
