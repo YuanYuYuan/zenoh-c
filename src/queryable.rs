@@ -199,9 +199,7 @@ pub struct z_query_reply_err_options_t {
 pub extern "C" fn z_query_reply_err_options_default(
     this: &mut MaybeUninit<z_query_reply_err_options_t>,
 ) {
-    this.write(z_query_reply_err_options_t {
-        encoding: None,
-    });
+    this.write(z_query_reply_err_options_t { encoding: None });
 }
 
 /// Represents the set of options that can be applied to a query delete reply,

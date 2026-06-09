@@ -220,7 +220,10 @@ pub extern "C" fn z_publisher_put_options_default(
 }
 
 pub(crate) fn _apply_publisher_put_options<
-    T: SampleBuilderTrait + TimestampBuilderTrait + EncodingBuilderTrait + TimestampInstrumentationBuilderTrait,
+    T: SampleBuilderTrait
+        + TimestampBuilderTrait
+        + EncodingBuilderTrait
+        + TimestampInstrumentationBuilderTrait,
 >(
     builder: T,
     options: &mut z_publisher_put_options_t,

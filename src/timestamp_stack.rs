@@ -21,8 +21,9 @@ use std::{mem::MaybeUninit, ptr::null, sync::Arc};
 
 use libc::c_void;
 use zenoh::timestamp_stack::{
-    InstrumentationTimestamp, InterceptionPoint, SessionTimestampCallback, TimestampInstrumentation,
-    TimestampInstrumentationBuilder, TimestampStack as RustTimestampStack, TsStackContext,
+    InstrumentationTimestamp, InterceptionPoint, SessionTimestampCallback,
+    TimestampInstrumentation, TimestampInstrumentationBuilder,
+    TimestampStack as RustTimestampStack, TsStackContext,
 };
 
 // Re-export so that put.rs / get.rs / publisher.rs can import via `timestamp_stack::`.
