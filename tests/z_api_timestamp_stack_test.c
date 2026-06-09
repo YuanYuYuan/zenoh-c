@@ -195,21 +195,21 @@ void test_publisher_default(void) {
     assert(z_declare_subscriber(z_session_loan(&s), &sub, z_view_keyexpr_loan(&ke), z_closure_sample_move(&cb), NULL) ==
            Z_OK);
 
-    z_owned_timestamp_instrumentation_t instr;
-    assert(z_timestamp_instrumentation_new(&instr, true, false, true) == Z_OK);
-
-    z_publisher_options_t pub_opts;
-    z_publisher_options_default(&pub_opts);
-    pub_opts.timestamp_instrumentation = z_timestamp_instrumentation_loan(&instr);
-
     z_owned_publisher_t pub;
-    assert(z_declare_publisher(z_session_loan(&s), &pub, z_view_keyexpr_loan(&ke), &pub_opts) == Z_OK);
+    assert(z_declare_publisher(z_session_loan(&s), &pub, z_view_keyexpr_loan(&ke), NULL) == Z_OK);
 
     z_sleep_ms(50);
 
+    z_owned_timestamp_instrumentation_t instr;
+    assert(z_timestamp_instrumentation_new(&instr, true, false, true) == Z_OK);
+
+    z_publisher_put_options_t put_opts;
+    z_publisher_put_options_default(&put_opts);
+    put_opts.timestamp_instrumentation = z_timestamp_instrumentation_loan(&instr);
+
     z_owned_bytes_t payload;
     z_bytes_from_static_str(&payload, "data");
-    assert(z_publisher_put(z_publisher_loan(&pub), z_bytes_move(&payload), NULL) == Z_OK);
+    assert(z_publisher_put(z_publisher_loan(&pub), z_bytes_move(&payload), &put_opts) == Z_OK);
     z_sleep_ms(200);
 
     assert(ctx.received == 1);
