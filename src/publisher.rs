@@ -16,7 +16,10 @@ use std::mem::MaybeUninit;
 
 use zenoh::{
     handlers::Callback,
-    internal::traits::{EncodingBuilderTrait, SampleBuilderTrait, TimestampBuilderTrait},
+    internal::traits::{
+        EncodingBuilderTrait, SampleBuilderTrait, TimestampBuilderTrait,
+        TimestampInstrumentationBuilderTrait,
+    },
     matching::MatchingStatus,
     pubsub::{Publisher, PublisherBuilder},
     qos::{CongestionControl, Priority},
@@ -55,12 +58,6 @@ pub struct z_publisher_options_t {
     pub reliability: z_reliability_t,
     /// The allowed destination for this publisher.
     pub allowed_destination: z_locality_t,
-    #[cfg(feature = "unstable")]
-    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
-    ///
-    /// Default timestamp instrumentation for all `z_publisher_put()` calls on this publisher.
-    /// Can be overridden per-put via `z_publisher_put_options_t.timestamp_instrumentation`.
-    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 impl Default for z_publisher_options_t {
@@ -73,8 +70,6 @@ impl Default for z_publisher_options_t {
             #[cfg(feature = "unstable")]
             reliability: z_reliability_default(),
             allowed_destination: z_locality_default(),
-            #[cfg(feature = "unstable")]
-            timestamp_instrumentation: None,
         }
     }
 }
@@ -108,9 +103,6 @@ pub(crate) fn _declare_publisher_inner(
         #[cfg(feature = "unstable")]
         {
             p = p.reliability(options.reliability.into());
-            if let Some(instr) = options.timestamp_instrumentation {
-                p = p.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
-            }
         }
         if let Some(encoding) = options.encoding.take() {
             p = p.encoding(encoding.take_rust_type());
@@ -228,7 +220,7 @@ pub extern "C" fn z_publisher_put_options_default(
 }
 
 pub(crate) fn _apply_publisher_put_options<
-    T: SampleBuilderTrait + TimestampBuilderTrait + EncodingBuilderTrait,
+    T: SampleBuilderTrait + TimestampBuilderTrait + EncodingBuilderTrait + TimestampInstrumentationBuilderTrait,
 >(
     builder: T,
     options: &mut z_publisher_put_options_t,

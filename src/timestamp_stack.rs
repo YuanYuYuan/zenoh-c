@@ -57,7 +57,6 @@ impl From<InterceptionPoint> for z_interception_point_t {
             InterceptionPoint::Send => Self::Send,
             InterceptionPoint::Route => Self::Route,
             InterceptionPoint::Receive => Self::Receive,
-            _ => Self::Unknown,
         }
     }
 }
