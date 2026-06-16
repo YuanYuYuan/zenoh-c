@@ -286,10 +286,14 @@ pub unsafe extern "C" fn z_publisher_put(
 /// Represents the set of options that can be applied to the delete operation by a previously declared publisher,
 /// whenever issued via `z_publisher_delete()`.
 #[repr(C)]
-#[derive(Default)]
 pub struct z_publisher_delete_options_t {
     /// The timestamp of this message.
     pub timestamp: Option<&'static z_timestamp_t>,
+    #[cfg(feature = "unstable")]
+    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+    ///
+    /// Per-delete timestamp instrumentation override.
+    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 /// Constructs the default values for the delete operation via a publisher entity.
@@ -298,16 +302,26 @@ pub struct z_publisher_delete_options_t {
 pub extern "C" fn z_publisher_delete_options_default(
     this: &mut MaybeUninit<z_publisher_delete_options_t>,
 ) {
-    this.write(z_publisher_delete_options_t::default());
+    this.write(z_publisher_delete_options_t {
+        timestamp: None,
+        #[cfg(feature = "unstable")]
+        timestamp_instrumentation: None,
+    });
 }
 
-pub(crate) fn _apply_publisher_delete_options<T: TimestampBuilderTrait>(
+pub(crate) fn _apply_publisher_delete_options<
+    T: TimestampBuilderTrait + TimestampInstrumentationBuilderTrait,
+>(
     builder: T,
     options: &mut z_publisher_delete_options_t,
 ) -> T {
     let mut builder = builder;
     if let Some(timestamp) = options.timestamp {
         builder = builder.timestamp(Some(*timestamp.as_rust_type_ref()));
+    }
+    #[cfg(feature = "unstable")]
+    if let Some(instr) = options.timestamp_instrumentation {
+        builder = builder.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
     }
     builder
 }

@@ -161,6 +161,12 @@ pub struct z_delete_options_t {
     pub reliability: z_reliability_t,
     /// The allowed destination of this message.
     pub allowed_destination: z_locality_t,
+    #[cfg(feature = "unstable")]
+    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+    ///
+    /// Opt-in timestamp instrumentation. When set, the message will carry a TsStack extension
+    /// recording timestamps at the configured interception points.
+    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 /// Constructs the default value for `z_delete_options_t`.
@@ -175,6 +181,8 @@ pub unsafe extern "C" fn z_delete_options_default(this_: &mut MaybeUninit<z_dele
         #[cfg(feature = "unstable")]
         reliability: z_reliability_default(),
         allowed_destination: z_locality_default(),
+        #[cfg(feature = "unstable")]
+        timestamp_instrumentation: None,
     });
 }
 
@@ -208,6 +216,9 @@ pub extern "C" fn z_delete(
         #[cfg(feature = "unstable")]
         {
             del = del.reliability(options.reliability.into());
+            if let Some(instr) = options.timestamp_instrumentation {
+                del = del.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
+            }
         }
     }
 

@@ -231,6 +231,164 @@ void test_invalid_instrumentation(void) {
     assert(rc != Z_OK);
 }
 
+// ── test_session_delete_instrumentation ──────────────────────────────────────
+
+void test_session_delete_instrumentation(void) {
+    printf("test_session_delete_instrumentation\n");
+
+    z_owned_session_t s = open_session();
+    z_view_keyexpr_t ke;
+    z_view_keyexpr_from_str(&ke, "test/ts/c/del");
+
+    SampleCtx ctx = {0};
+    z_owned_closure_sample_t cb;
+    z_closure_sample(&cb, on_sample, NULL, &ctx);
+    z_owned_subscriber_t sub;
+    assert(z_declare_subscriber(z_session_loan(&s), &sub, z_view_keyexpr_loan(&ke), z_closure_sample_move(&cb), NULL) ==
+           Z_OK);
+
+    z_sleep_ms(50);
+
+    z_owned_timestamp_instrumentation_t instr;
+    assert(z_timestamp_instrumentation_new(&instr, true, false, true) == Z_OK);
+
+    z_delete_options_t opts;
+    z_delete_options_default(&opts);
+    opts.timestamp_instrumentation = z_timestamp_instrumentation_loan(&instr);
+
+    assert(z_delete(z_session_loan(&s), z_view_keyexpr_loan(&ke), &opts) == Z_OK);
+    z_sleep_ms(200);
+
+    assert(ctx.received == 1);
+    assert(ctx.has_stack == 1);
+    assert(ctx.found_send);
+    assert(ctx.found_receive);
+
+    z_timestamp_instrumentation_drop(z_timestamp_instrumentation_move(&instr));
+    z_undeclare_subscriber(z_subscriber_move(&sub));
+    z_session_drop(z_session_move(&s));
+}
+
+// ── test_publisher_delete_instrumentation ────────────────────────────────────
+
+void test_publisher_delete_instrumentation(void) {
+    printf("test_publisher_delete_instrumentation\n");
+
+    z_owned_session_t s = open_session();
+    z_view_keyexpr_t ke;
+    z_view_keyexpr_from_str(&ke, "test/ts/c/pub_del");
+
+    SampleCtx ctx = {0};
+    z_owned_closure_sample_t cb;
+    z_closure_sample(&cb, on_sample, NULL, &ctx);
+    z_owned_subscriber_t sub;
+    assert(z_declare_subscriber(z_session_loan(&s), &sub, z_view_keyexpr_loan(&ke), z_closure_sample_move(&cb), NULL) ==
+           Z_OK);
+
+    z_owned_publisher_t pub;
+    assert(z_declare_publisher(z_session_loan(&s), &pub, z_view_keyexpr_loan(&ke), NULL) == Z_OK);
+
+    z_sleep_ms(50);
+
+    z_owned_timestamp_instrumentation_t instr;
+    assert(z_timestamp_instrumentation_new(&instr, true, false, true) == Z_OK);
+
+    z_publisher_delete_options_t del_opts;
+    z_publisher_delete_options_default(&del_opts);
+    del_opts.timestamp_instrumentation = z_timestamp_instrumentation_loan(&instr);
+
+    assert(z_publisher_delete(z_publisher_loan(&pub), &del_opts) == Z_OK);
+    z_sleep_ms(200);
+
+    assert(ctx.received == 1);
+    assert(ctx.has_stack == 1);
+    assert(ctx.found_send);
+    assert(ctx.found_receive);
+
+    z_undeclare_publisher(z_publisher_move(&pub));
+    z_timestamp_instrumentation_drop(z_timestamp_instrumentation_move(&instr));
+    z_undeclare_subscriber(z_subscriber_move(&sub));
+    z_session_drop(z_session_move(&s));
+}
+
+// ── test_query_timestamp_stack ────────────────────────────────────────────────
+
+typedef struct {
+    int received;
+    int has_stack;
+    int found_send;
+} QueryCtx;
+
+static void on_query(z_loaned_query_t* query, void* arg) {
+    QueryCtx* ctx = (QueryCtx*)arg;
+    ctx->received = 1;
+
+    const z_loaned_timestamp_stack_t* stack = z_query_timestamp_stack(query);
+    ctx->has_stack = (stack != NULL);
+    if (stack) {
+        size_t n = z_timestamp_stack_record_count(stack);
+        for (size_t i = 0; i < n; i++) {
+            const z_loaned_timestamp_stack_record_t* rec = z_timestamp_stack_record_at(stack, i);
+            if (rec && z_timestamp_stack_record_point(rec) == Z_INTERCEPTION_POINT_SEND)
+                ctx->found_send = 1;
+        }
+    }
+
+    z_owned_bytes_t reply_payload;
+    z_bytes_from_static_str(&reply_payload, "answer");
+    z_view_keyexpr_t ke;
+    z_view_keyexpr_from_str(&ke, "test/ts/c/q/key");
+    z_query_reply(query, z_view_keyexpr_loan(&ke), z_bytes_move(&reply_payload), NULL);
+}
+
+void test_query_timestamp_stack(void) {
+    printf("test_query_timestamp_stack\n");
+
+    z_owned_session_t s = open_session();
+    z_view_keyexpr_t ke;
+    z_view_keyexpr_from_str(&ke, "test/ts/c/q/**");
+
+    QueryCtx ctx = {0};
+    z_owned_closure_query_t qcb;
+    z_closure_query(&qcb, on_query, NULL, &ctx);
+    z_owned_queryable_t qbl;
+    assert(z_declare_queryable(z_session_loan(&s), &qbl, z_view_keyexpr_loan(&ke), z_closure_query_move(&qcb), NULL) ==
+           Z_OK);
+
+    z_sleep_ms(50);
+
+    z_owned_timestamp_instrumentation_t instr;
+    assert(z_timestamp_instrumentation_new(&instr, true, false, true) == Z_OK);
+
+    z_get_options_t get_opts;
+    z_get_options_default(&get_opts);
+    get_opts.timestamp_instrumentation = z_timestamp_instrumentation_loan(&instr);
+
+    z_view_keyexpr_t get_ke;
+    z_view_keyexpr_from_str(&get_ke, "test/ts/c/q/key");
+
+    z_owned_fifo_handler_reply_t handler;
+    z_owned_closure_reply_t closure;
+    z_fifo_channel_reply_new(&closure, &handler, 16);
+    assert(z_get(z_session_loan(&s), z_view_keyexpr_loan(&get_ke), "", z_closure_reply_move(&closure), &get_opts) == Z_OK);
+    z_sleep_ms(200);
+
+    // drain replies
+    z_owned_reply_t reply;
+    while (z_recv_reply(z_loaned_fifo_handler_reply_loan(&handler), &reply) == Z_OK) {
+        z_reply_drop(z_reply_move(&reply));
+    }
+    z_fifo_handler_reply_drop(z_loaned_fifo_handler_reply_move(&handler));
+
+    assert(ctx.received == 1);
+    assert(ctx.has_stack == 1);
+    assert(ctx.found_send == 1);
+
+    z_timestamp_instrumentation_drop(z_timestamp_instrumentation_move(&instr));
+    z_undeclare_queryable(z_queryable_move(&qbl));
+    z_session_drop(z_session_move(&s));
+}
+
 // ── main ──────────────────────────────────────────────────────────────────────
 
 int main(void) {
@@ -239,6 +397,9 @@ int main(void) {
     test_as_timestamp();
     test_publisher_default();
     test_invalid_instrumentation();
+    test_session_delete_instrumentation();
+    test_publisher_delete_instrumentation();
+    test_query_timestamp_stack();
     printf("All timestamp stack tests passed.\n");
     return 0;
 }

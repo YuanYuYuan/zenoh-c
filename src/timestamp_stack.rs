@@ -31,8 +31,9 @@ pub use crate::opaque_types::z_loaned_timestamp_instrumentation_t;
 use crate::{
     get::{z_loaned_reply_err_t, z_loaned_reply_t},
     opaque_types::{
-        z_loaned_sample_t, z_loaned_timestamp_stack_record_t, z_loaned_timestamp_stack_t,
-        z_moved_timestamp_instrumentation_t, z_owned_timestamp_instrumentation_t, z_timestamp_t,
+        z_loaned_query_t, z_loaned_sample_t, z_loaned_timestamp_stack_record_t,
+        z_loaned_timestamp_stack_t, z_moved_timestamp_instrumentation_t,
+        z_owned_timestamp_instrumentation_t, z_timestamp_t,
     },
     transmute::{LoanedCTypeRef, RustTypeRef, RustTypeRefUninit, TakeRustType},
 };
@@ -252,6 +253,20 @@ pub extern "C" fn z_timestamp_stack_record_as_timestamp(
 }
 
 // ── Sample/Reply/ReplyError accessors ────────────────────────────────────────
+
+/// @warning This API has been marked as unstable.
+///
+/// Returns a loaned pointer to the timestamp stack on a query, or NULL if not present.
+/// The stack is present when the caller used timestamp instrumentation on the get/querier_get call.
+#[no_mangle]
+pub extern "C" fn z_query_timestamp_stack(
+    this_: &z_loaned_query_t,
+) -> *const z_loaned_timestamp_stack_t {
+    match this_.as_rust_type_ref().timestamp_stack() {
+        Some(ts) => ts.as_loaned_c_type_ref() as *const z_loaned_timestamp_stack_t,
+        None => null(),
+    }
+}
 
 /// @warning This API has been marked as unstable.
 ///
