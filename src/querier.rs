@@ -36,7 +36,8 @@ use crate::{
 };
 #[cfg(feature = "unstable")]
 use crate::{
-    transmute::IntoCType, z_entity_global_id_t, z_moved_cancellation_token_t, z_source_info_t,
+    timestamp_stack::z_loaned_timestamp_instrumentation_t, transmute::IntoCType,
+    z_entity_global_id_t, z_moved_cancellation_token_t, z_source_info_t,
 };
 
 /// @brief Options passed to the `z_declare_querier()` function.
@@ -184,6 +185,12 @@ pub struct z_querier_get_options_t {
     ///
     /// Cancellation token to interrupt the query.
     pub cancellation_token: Option<&'static mut z_moved_cancellation_token_t>,
+    #[cfg(feature = "unstable")]
+    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+    ///
+    /// Opt-in timestamp instrumentation. When set, the query will carry a TsStack extension
+    /// recording timestamps at the configured interception points.
+    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 impl z_querier_get_options_t {
@@ -216,6 +223,8 @@ pub extern "C" fn z_querier_get_options_default(this: &mut MaybeUninit<z_querier
         attachment: None,
         #[cfg(feature = "unstable")]
         cancellation_token: None,
+        #[cfg(feature = "unstable")]
+        timestamp_instrumentation: None,
     });
 }
 
@@ -310,6 +319,10 @@ pub unsafe extern "C" fn z_querier_get_with_parameters_substr(
             .and_then(|ct| ct.take_rust_type())
         {
             get = get.cancellation_token(ct);
+        }
+        #[cfg(feature = "unstable")]
+        if let Some(instr) = options.timestamp_instrumentation {
+            get = get.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
         }
     }
     if !p.is_empty() {

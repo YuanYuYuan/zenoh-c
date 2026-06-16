@@ -16,7 +16,10 @@ use std::mem::MaybeUninit;
 
 use zenoh::{
     handlers::Callback,
-    internal::traits::{EncodingBuilderTrait, SampleBuilderTrait, TimestampBuilderTrait},
+    internal::traits::{
+        EncodingBuilderTrait, SampleBuilderTrait, TimestampBuilderTrait,
+        TimestampInstrumentationBuilderTrait,
+    },
     matching::MatchingStatus,
     pubsub::{Publisher, PublisherBuilder},
     qos::{CongestionControl, Priority},
@@ -34,8 +37,8 @@ use crate::{
 };
 #[cfg(feature = "unstable")]
 use crate::{
-    transmute::IntoCType, z_entity_global_id_t, z_reliability_default, z_reliability_t,
-    z_source_info_t,
+    timestamp_stack::z_loaned_timestamp_instrumentation_t, transmute::IntoCType,
+    z_entity_global_id_t, z_reliability_default, z_reliability_t, z_source_info_t,
 };
 /// Options passed to the `z_declare_publisher()` function.
 #[repr(C)]
@@ -191,6 +194,12 @@ pub struct z_publisher_put_options_t {
     pub source_info: Option<&'static z_source_info_t>,
     /// The attachment to attach to the publication.
     pub attachment: Option<&'static mut z_moved_bytes_t>,
+    #[cfg(feature = "unstable")]
+    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+    ///
+    /// Per-put timestamp instrumentation override. When set, takes precedence over the
+    /// publisher's default instrumentation set via `z_publisher_options_t`.
+    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 /// Constructs the default value for `z_publisher_put_options_t`.
@@ -205,11 +214,16 @@ pub extern "C" fn z_publisher_put_options_default(
         #[cfg(feature = "unstable")]
         source_info: None,
         attachment: None,
+        #[cfg(feature = "unstable")]
+        timestamp_instrumentation: None,
     });
 }
 
 pub(crate) fn _apply_publisher_put_options<
-    T: SampleBuilderTrait + TimestampBuilderTrait + EncodingBuilderTrait,
+    T: SampleBuilderTrait
+        + TimestampBuilderTrait
+        + EncodingBuilderTrait
+        + TimestampInstrumentationBuilderTrait,
 >(
     builder: T,
     options: &mut z_publisher_put_options_t,
@@ -227,6 +241,10 @@ pub(crate) fn _apply_publisher_put_options<
     }
     if let Some(timestamp) = options.timestamp {
         builder = builder.timestamp(Some(*timestamp.as_rust_type_ref()));
+    }
+    #[cfg(feature = "unstable")]
+    if let Some(instr) = options.timestamp_instrumentation {
+        builder = builder.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
     }
     builder
 }
@@ -272,6 +290,11 @@ pub unsafe extern "C" fn z_publisher_put(
 pub struct z_publisher_delete_options_t {
     /// The timestamp of this message.
     pub timestamp: Option<&'static z_timestamp_t>,
+    #[cfg(feature = "unstable")]
+    /// @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+    ///
+    /// Per-delete timestamp instrumentation override.
+    pub timestamp_instrumentation: Option<&'static z_loaned_timestamp_instrumentation_t>,
 }
 
 /// Constructs the default values for the delete operation via a publisher entity.
@@ -283,13 +306,19 @@ pub extern "C" fn z_publisher_delete_options_default(
     this.write(z_publisher_delete_options_t::default());
 }
 
-pub(crate) fn _apply_publisher_delete_options<T: TimestampBuilderTrait>(
+pub(crate) fn _apply_publisher_delete_options<
+    T: TimestampBuilderTrait + TimestampInstrumentationBuilderTrait,
+>(
     builder: T,
     options: &mut z_publisher_delete_options_t,
 ) -> T {
     let mut builder = builder;
     if let Some(timestamp) = options.timestamp {
         builder = builder.timestamp(Some(*timestamp.as_rust_type_ref()));
+    }
+    #[cfg(feature = "unstable")]
+    if let Some(instr) = options.timestamp_instrumentation {
+        builder = builder.timestamp_instrumentation(Some(*instr.as_rust_type_ref()));
     }
     builder
 }

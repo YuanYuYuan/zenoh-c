@@ -185,6 +185,28 @@ typedef enum z_whatami_t {
   Z_WHATAMI_CLIENT = 4,
 } z_whatami_t;
 /**
+ * @warning This API has been marked as unstable.
+ *
+ * Which interception point a timestamp record was captured at.
+ * New variants may be added in future releases; treat unknown values as `UNKNOWN`.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+typedef enum z_interception_point_t {
+#if defined(Z_FEATURE_UNSTABLE_API)
+  Z_INTERCEPTION_POINT_SEND = 0,
+#endif
+#if defined(Z_FEATURE_UNSTABLE_API)
+  Z_INTERCEPTION_POINT_ROUTE = 1,
+#endif
+#if defined(Z_FEATURE_UNSTABLE_API)
+  Z_INTERCEPTION_POINT_RECEIVE = 2,
+#endif
+#if defined(Z_FEATURE_UNSTABLE_API)
+  Z_INTERCEPTION_POINT_UNKNOWN = 255,
+#endif
+} z_interception_point_t;
+#endif
+/**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
  * @brief Intersection level of 2 key expressions.
  */
@@ -808,6 +830,13 @@ typedef struct z_moved_fifo_handler_sample_t {
   struct z_owned_fifo_handler_sample_t _this;
 } z_moved_fifo_handler_sample_t;
 /**
+ * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+ * @brief A loaned timestamp instrumentation config.
+ */
+typedef struct ALIGN(1) z_loaned_timestamp_instrumentation_t {
+  uint8_t _0[1];
+} z_loaned_timestamp_instrumentation_t;
+/**
  * Options passed to the `z_get()` function.
  */
 typedef struct z_get_options_t {
@@ -871,6 +900,14 @@ typedef struct z_get_options_t {
    */
   struct z_moved_cancellation_token_t *cancellation_token;
 #endif
+#if defined(Z_FEATURE_UNSTABLE_API)
+  /**
+   * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+   *
+   * Opt-in timestamp instrumentation for this query.
+   */
+  const struct z_loaned_timestamp_instrumentation_t *timestamp_instrumentation;
+#endif
 } z_get_options_t;
 typedef struct z_moved_hello_t {
   struct z_owned_hello_t _this;
@@ -889,6 +926,36 @@ typedef struct z_info_links_options_t {
   struct z_moved_transport_t *transport;
 } z_info_links_options_t;
 #endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * A session-level callback for generating custom timestamps.
+ *
+ * Registered once at `z_open()` time. Receives a context describing the current node
+ * and interception point, and returns raw timestamp bytes.
+ * Return a zero-length result (set `*len = 0`) to skip stamping this point.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+typedef struct z_owned_session_ts_callback_t {
+  void *_context;
+  void (*_call)(const uint8_t *zid,
+                size_t zid_len,
+                uint8_t whatami,
+                enum z_interception_point_t point,
+                uint8_t *out_ts,
+                size_t *out_len,
+                size_t out_capacity,
+                void *context);
+  void (*_drop)(void *context);
+} z_owned_session_ts_callback_t;
+#endif
+/**
+ * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+ * @brief An owned timestamp instrumentation config. Specifies which interception points to record.
+ */
+typedef struct ALIGN(1) z_owned_timestamp_instrumentation_t {
+  uint8_t _0[2];
+} z_owned_timestamp_instrumentation_t;
 typedef struct z_moved_keyexpr_t {
   struct z_owned_keyexpr_t _this;
 } z_moved_keyexpr_t;
@@ -950,6 +1017,17 @@ typedef struct z_moved_mutex_t {
  */
 typedef struct z_open_options_t {
   uint8_t _dummy;
+#if defined(Z_FEATURE_UNSTABLE_API)
+  /**
+   * @warning This API has been marked as unstable.
+   *
+   * Optional session-level timestamp callback. When set, the callback is called at each
+   * instrumented interception point to produce custom timestamp bytes.
+   * Pass `NULL` (leave at default) to use the built-in UHLC timestamps.
+   * Ownership is transferred to the session on `z_open()`.
+   */
+  struct z_owned_session_ts_callback_t timestamp_callback;
+#endif
 } z_open_options_t;
 /**
  * Represents the set of options that can be applied to the delete operation by a previously declared publisher,
@@ -988,6 +1066,15 @@ typedef struct z_publisher_put_options_t {
    * The attachment to attach to the publication.
    */
   struct z_moved_bytes_t *attachment;
+#if defined(Z_FEATURE_UNSTABLE_API)
+  /**
+   * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+   *
+   * Per-put timestamp instrumentation override. When set, takes precedence over the
+   * publisher's default instrumentation set via `z_publisher_options_t`.
+   */
+  const struct z_loaned_timestamp_instrumentation_t *timestamp_instrumentation;
+#endif
 } z_publisher_put_options_t;
 /**
  * Options passed to the `z_put()` function.
@@ -1037,6 +1124,15 @@ typedef struct z_put_options_t {
    * The attachment to this message.
    */
   struct z_moved_bytes_t *attachment;
+#if defined(Z_FEATURE_UNSTABLE_API)
+  /**
+   * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+   *
+   * Opt-in timestamp instrumentation. When set, the message will carry a TsStack extension
+   * recording timestamps at the configured interception points.
+   */
+  const struct z_loaned_timestamp_instrumentation_t *timestamp_instrumentation;
+#endif
 } z_put_options_t;
 typedef struct z_moved_querier_t {
   struct z_owned_querier_t _this;
@@ -1172,6 +1268,13 @@ typedef struct z_moved_reply_t {
 typedef struct z_moved_reply_err_t {
   struct z_owned_reply_err_t _this;
 } z_moved_reply_err_t;
+/**
+ * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+ * @brief A loaned timestamp stack received on a sample or reply.
+ */
+typedef struct ALIGN(8) z_loaned_timestamp_stack_t {
+  uint8_t _0[32];
+} z_loaned_timestamp_stack_t;
 typedef struct z_moved_ring_handler_query_t {
   struct z_owned_ring_handler_query_t _this;
 } z_moved_ring_handler_query_t;
@@ -1200,6 +1303,16 @@ typedef struct z_scout_options_t {
 typedef struct z_moved_session_t {
   struct z_owned_session_t _this;
 } z_moved_session_t;
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Moved session timestamp callback.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+typedef struct z_moved_session_ts_callback_t {
+  struct z_owned_session_ts_callback_t _this;
+} z_moved_session_ts_callback_t;
+#endif
 typedef struct z_moved_shared_shm_provider_t {
   struct z_owned_shared_shm_provider_t _this;
 } z_moved_shared_shm_provider_t;
@@ -1230,6 +1343,16 @@ typedef struct z_task_attr_t {
 typedef struct z_time_t {
   uint64_t t;
 } z_time_t;
+typedef struct z_moved_timestamp_instrumentation_t {
+  struct z_owned_timestamp_instrumentation_t _this;
+} z_moved_timestamp_instrumentation_t;
+/**
+ * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
+ * @brief A loaned record within a timestamp stack.
+ */
+typedef struct ALIGN(8) z_loaned_timestamp_stack_record_t {
+  uint8_t _0[40];
+} z_loaned_timestamp_stack_record_t;
 typedef struct z_moved_transport_event_t {
   struct z_owned_transport_event_t _this;
 } z_moved_transport_event_t;
@@ -1955,7 +2078,7 @@ ZENOHC_API
 z_result_t z_bytes_to_string(const struct z_loaned_bytes_t *this_,
                              struct z_owned_string_t *dst);
 /**
- * Appends bytes.
+ * Appends bytes.     
  * This allows to compose a serialized data out of multiple `z_owned_bytes_t` that may point to different memory regions.
  * Said in other terms, it allows to create a linear view on different memory regions without copy.
  *
@@ -3971,6 +4094,23 @@ ZENOHC_API bool z_internal_session_check(const struct z_owned_session_t *this_);
  */
 ZENOHC_API void z_internal_session_null(struct z_owned_session_t *this_);
 /**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns ``true`` if the callback is non-null.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+bool z_internal_session_ts_callback_check(const struct z_owned_session_ts_callback_t *this_);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Constructs a null (empty) session timestamp callback.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API void z_internal_session_ts_callback_null(struct z_owned_session_ts_callback_t *this_);
+#endif
+/**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
  * @brief Returns ``true`` if `this` is valid.
  */
@@ -4107,6 +4247,24 @@ ZENOHC_API bool z_internal_task_check(const struct z_owned_task_t *this_);
  */
 ZENOHC_API void z_internal_task_null(struct z_owned_task_t *this_);
 /**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns ``true`` if the instrumentation config is valid.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+bool z_internal_timestamp_instrumentation_check(const struct z_owned_timestamp_instrumentation_t *this_);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Constructs a null (invalid) timestamp instrumentation.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+void z_internal_timestamp_instrumentation_null(struct z_owned_timestamp_instrumentation_t *this_);
+#endif
+/**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
  * Returns ``true`` if transport is valid, ``false`` if it is in gravestone state.
  */
@@ -4164,7 +4322,7 @@ void z_keyexpr_as_view_string(const struct z_loaned_keyexpr_t *this_,
  * Canonizes the passed string in place, possibly shortening it by modifying `len`.
  *
  * May SEGFAULT if `start` is NULL or lies in read-only memory (as values initialized with string litterals do).
- *
+ *  
  * @return 0 upon success, negative error values upon failure (if the passed string was an invalid
  * key expression for reasons other than a non-canon form).
  */
@@ -4727,7 +4885,7 @@ ZENOHC_API
 z_result_t z_mutex_unlock(struct z_loaned_mutex_t *this_);
 /**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
- * @brief Each session's runtime may create its own provider to manage internal optimizations.
+ * @brief Each session's runtime may create its own provider to manage internal optimizations.  
  * This method exposes that provider so it can also be accessed at the application level.
  *
  * Note that the provider may not be immediately available or may be disabled via configuration.
@@ -4755,7 +4913,7 @@ z_result_t z_obtain_shm_provider(const struct z_loaned_session_t *this_,
 ZENOHC_API
 z_result_t z_open(struct z_owned_session_t *this_,
                   struct z_moved_config_t *config,
-                  const struct z_open_options_t *_options);
+                  struct z_open_options_t *options);
 /**
  * Constructs the default value for `z_open_options_t`.
  */
@@ -5426,6 +5584,16 @@ const struct z_loaned_bytes_t *z_reply_err_payload(const struct z_loaned_reply_e
  */
 ZENOHC_API struct z_loaned_bytes_t *z_reply_err_payload_mut(struct z_loaned_reply_err_t *this_);
 /**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns a loaned pointer to the timestamp stack on a reply error,
+ * or NULL if not present.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+const struct z_loaned_timestamp_stack_t *z_reply_err_timestamp_stack(const struct z_loaned_reply_err_t *this_);
+#endif
+/**
  * Returns ``true`` if reply contains a valid response, ``false`` otherwise (in this case it contains a errror value).
  */
 ZENOHC_API
@@ -5468,6 +5636,19 @@ bool z_reply_replier_id(const struct z_loaned_reply_t *this_,
  * Takes ownership of the mutably borrowed reply
  */
 ZENOHC_API void z_reply_take_from_loaned(struct z_owned_reply_t *dst, struct z_loaned_reply_t *src);
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns a loaned pointer to the timestamp stack on a successful reply's sample,
+ * or NULL if not present.
+ *
+ * # Safety
+ * Caller must ensure `this_` is a valid, initialized pointer.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+const struct z_loaned_timestamp_stack_t *z_reply_timestamp_stack(const struct z_loaned_reply_t *this_);
+#endif
 /**
  * Constructs send and recieve ends of the ring channel
  */
@@ -5652,6 +5833,15 @@ void z_sample_take_from_loaned(struct z_owned_sample_t *dst,
  */
 ZENOHC_API const struct z_timestamp_t *z_sample_timestamp(const struct z_loaned_sample_t *this_);
 /**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns a loaned pointer to the timestamp stack on a sample, or NULL if not present.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+const struct z_loaned_timestamp_stack_t *z_sample_timestamp_stack(const struct z_loaned_sample_t *this_);
+#endif
+/**
  * Scout for routers and/or peers.
  *
  * @param config: A set of properties to configure scouting session.
@@ -5691,6 +5881,14 @@ ZENOHC_API bool z_session_is_closed(const struct z_loaned_session_t *session);
  */
 ZENOHC_API const struct z_loaned_session_t *z_session_loan(const struct z_owned_session_t *this_);
 ZENOHC_API struct z_loaned_session_t *z_session_loan_mut(struct z_owned_session_t *this_);
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Drops the session timestamp callback (calls the drop function if set).
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API void z_session_ts_callback_drop(struct z_moved_session_ts_callback_t *this_);
+#endif
 /**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
  * Constructs a shallow copy of shared SHM provider.
@@ -6451,6 +6649,44 @@ const char *z_time_now_as_str(const char *buf,
  */
 ZENOHC_API struct z_id_t z_timestamp_id(const struct z_timestamp_t *this_);
 /**
+ * @warning This API has been marked as unstable.
+ *
+ * Drops the instrumentation config.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API void z_timestamp_instrumentation_drop(struct z_moved_timestamp_instrumentation_t *this_);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Borrows the instrumentation config.
+ *
+ * # Safety
+ * Caller must ensure `this_` is a valid, initialized pointer.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+const struct z_loaned_timestamp_instrumentation_t *z_timestamp_instrumentation_loan(const struct z_owned_timestamp_instrumentation_t *this_);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Constructs a timestamp instrumentation config specifying which points to record.
+ *
+ * @param this_: An uninitialized location to write the result to.
+ * @param send: Record timestamps at the SEND point.
+ * @param route: Record timestamps at the ROUTE point.
+ * @param receive: Record timestamps at the RECEIVE point.
+ * @return 0 on success, negative error code if all flags are false.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+z_result_t z_timestamp_instrumentation_new(struct z_owned_timestamp_instrumentation_t *this_,
+                                           bool send,
+                                           bool route,
+                                           bool receive);
+#endif
+/**
  * Create uhlc timestamp from session id.
  */
 ZENOHC_API
@@ -6460,6 +6696,66 @@ z_result_t z_timestamp_new(struct z_timestamp_t *this_,
  * Returns NPT64 time associated with this timestamp.
  */
 ZENOHC_API uint64_t z_timestamp_ntp64_time(const struct z_timestamp_t *this_);
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Parses the record as a standard UHLC timestamp.
+ *
+ * Writes the result to `*out` on success. On failure (custom timestamp or malformed bytes),
+ * sets `*out` to an invalid timestamp and returns a negative error code.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+z_result_t z_timestamp_stack_record_as_timestamp(const struct z_loaned_timestamp_stack_record_t *record,
+                                                 struct z_timestamp_t *out);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns the record at the given index, or NULL if out of bounds.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+const struct z_loaned_timestamp_stack_record_t *z_timestamp_stack_record_at(const struct z_loaned_timestamp_stack_t *stack,
+                                                                            size_t index);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns the number of records in the timestamp stack.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API size_t z_timestamp_stack_record_count(const struct z_loaned_timestamp_stack_t *stack);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns ``true`` if the timestamp was produced by a user-defined callback.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+bool z_timestamp_stack_record_is_custom(const struct z_loaned_timestamp_stack_record_t *record);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns the interception point for this record.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+enum z_interception_point_t z_timestamp_stack_record_point(const struct z_loaned_timestamp_stack_record_t *record);
+#endif
+/**
+ * @warning This API has been marked as unstable.
+ *
+ * Returns a pointer to the raw timestamp bytes and sets `*len` to the byte count.
+ * The returned pointer is valid for the lifetime of the record. Do not free it.
+ */
+#if defined(Z_FEATURE_UNSTABLE_API)
+ZENOHC_API
+const uint8_t *z_timestamp_stack_record_timestamp(const struct z_loaned_timestamp_stack_record_t *record,
+                                                  size_t *len);
+#endif
 /**
  * @warning This API has been marked as unstable: it works as advertised, but it may be changed in a future release.
  * @brief Clones the transport.

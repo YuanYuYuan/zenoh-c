@@ -416,16 +416,16 @@ pub extern "C" fn z_query_reply(
 pub unsafe extern "C" fn z_query_reply_err(
     this: &z_loaned_query_t,
     payload: &mut z_moved_bytes_t,
-    options: Option<&mut z_query_reply_err_options_t>,
+    mut options: Option<&mut z_query_reply_err_options_t>,
 ) -> result::z_result_t {
     let query = this.as_rust_type_ref();
     let payload = payload.take_rust_type();
-    let reply = query.reply_err(payload).encoding(
-        options
-            .and_then(|o| o.encoding.take())
-            .map(|e| e.take_rust_type())
-            .unwrap_or(Encoding::default()),
-    );
+    let encoding = options
+        .as_mut()
+        .and_then(|o| o.encoding.take())
+        .map(|e| e.take_rust_type())
+        .unwrap_or(Encoding::default());
+    let reply = query.reply_err(payload).encoding(encoding);
 
     if let Err(e) = reply.wait() {
         crate::report_error!("{}", e);
