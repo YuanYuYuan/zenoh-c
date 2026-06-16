@@ -375,10 +375,10 @@ void test_query_timestamp_stack(void) {
 
     // drain replies
     z_owned_reply_t reply;
-    while (z_recv_reply(z_loaned_fifo_handler_reply_loan(&handler), &reply) == Z_OK) {
+    while (z_fifo_handler_reply_try_recv(z_fifo_handler_reply_loan(&handler), &reply) == Z_OK) {
         z_reply_drop(z_reply_move(&reply));
     }
-    z_fifo_handler_reply_drop(z_loaned_fifo_handler_reply_move(&handler));
+    z_fifo_handler_reply_drop(z_fifo_handler_reply_move(&handler));
 
     assert(ctx.received == 1);
     assert(ctx.has_stack == 1);
