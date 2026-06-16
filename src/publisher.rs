@@ -286,6 +286,7 @@ pub unsafe extern "C" fn z_publisher_put(
 /// Represents the set of options that can be applied to the delete operation by a previously declared publisher,
 /// whenever issued via `z_publisher_delete()`.
 #[repr(C)]
+#[derive(Default)]
 pub struct z_publisher_delete_options_t {
     /// The timestamp of this message.
     pub timestamp: Option<&'static z_timestamp_t>,
@@ -302,11 +303,7 @@ pub struct z_publisher_delete_options_t {
 pub extern "C" fn z_publisher_delete_options_default(
     this: &mut MaybeUninit<z_publisher_delete_options_t>,
 ) {
-    this.write(z_publisher_delete_options_t {
-        timestamp: None,
-        #[cfg(feature = "unstable")]
-        timestamp_instrumentation: None,
-    });
+    this.write(z_publisher_delete_options_t::default());
 }
 
 pub(crate) fn _apply_publisher_delete_options<
